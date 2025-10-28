@@ -208,7 +208,7 @@ jobs:
         if git diff --staged --quiet; then
           echo "No changes to commit"
         else
-          git commit -m "Auto-sync: Update generated-sources.json from LibreLinkUpDesktop_new1"
+          git commit -m "Auto-sync: Update generated-sources.json from LibreLinkUpDesktop_dev_new"
           git push
           echo "Changes pushed successfully"
         fi
@@ -262,14 +262,14 @@ jobs:
         # Replace ANY git URL with our new URL
         content = re.sub(
             r'url: https://github\.com/[^/\s]+/[^\s]+\.git',
-            'url: https://github.com/lkavindu199/LibreLinkUpDesktop_new1.git',
+            'url: https://github.com/lkavindu199/LibreLinkUpDesktop_dev_new.git',
             content
         )
         print('✅ Replaced ALL git URLs with our repository')
 
         # Replace branch (any branch name) after ANY git URL
         content = re.sub(
-            r'(url: https://github\.com/lkavindu199/LibreLinkUpDesktop_new1\.git\s+)branch: \S+',
+            r'(url: https://github\.com/lkavindu199/LibreLinkUpDesktop_dev_new\.git\s+)branch: \S+',
             r'\\1branch: main',
             content
         )
