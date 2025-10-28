@@ -4,6 +4,8 @@ on:
   push:
     tags:
       - 'flathubbuild-*'
+  release:
+    types: [published]
   workflow_dispatch:
 
 jobs:
