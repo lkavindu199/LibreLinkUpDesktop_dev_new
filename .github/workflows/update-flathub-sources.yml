@@ -248,12 +248,6 @@ jobs:
       run: |
         echo "latest_commit=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
 
-    - name: Debug current manifest structure
-      run: |
-        cd target-repo
-        echo "=== Current manifest structure around git sources ==="
-        grep -A 10 -B 2 "type: git" rocks.poopjournal.librelinkupdesktop.yml
-
     - name: Update manifest with Python (fixed)
       run: |
         cd target-repo
@@ -271,59 +265,50 @@ jobs:
         print('=== Before update ===')
         # Find and print the current git source section
         import re
-        git_sections = re.findall(r'(      - type: git\s+url: [^\n]+\s+commit: [^\n]+)', content)
+        git_sections = re.findall(r'      - type: git\s+url: [^\n]+\s+commit: [^\n]+', content)
         for section in git_sections:
             print('Found git section:')
             print(section)
 
-        # Method 1: Direct replacement with exact pattern matching
-        # Look for the specific pattern with flexible spacing
+        # Method 1: Simple and direct replacement
         old_content = content
 
-        # Pattern to match the entire git source block
-        pattern = r'''(      - type: git\n        url: https://github\.com/lkavindu199/LibreLinkUpDesktop_dev_new\.git\n        commit: )([a-fA-F0-9]+)'''
-
-        replacement = f'\\1{latest_commit}'
+        # Replace using a more flexible pattern
+        pattern = r'(      - type: git\s+url: https://github\.com/lkavindu199/LibreLinkUpDesktop_dev_new\.git\s+commit: )\S+'
+        replacement = f'\\g<1>{latest_commit}'
         content = re.sub(pattern, replacement, content)
 
-        # If no changes, try alternative pattern with different indentation
-        if content == old_content:
-            print('Trying alternative pattern...')
-            pattern2 = r'''(      - type: git\s+url: https://github\.com/lkavindu199/LibreLinkUpDesktop_dev_new\.git\s+commit: )([a-fA-F0-9]+)'''
-            content = re.sub(pattern2, replacement, content)
-
-        # Method 2: If regex still fails, use line-by-line processing
+        # Method 2: If no changes, use line-by-line processing
         if content == old_content:
             print('Using line-by-line processing...')
-            lines = content.split('\\n')
+            lines = content.split('\n')
             new_lines = []
             i = 0
             while i < len(lines):
                 line = lines[i]
-                # Check if this is our git source
-                if 'type: git' in line and i + 2 < len(lines):
-                    if 'url: https://github.com/lkavindu199/LibreLinkUpDesktop_dev_new.git' in lines[i + 1]:
-                        if 'commit:' in lines[i + 2]:
-                            # Found our target - replace the commit line
-                            new_lines.append(line)  # type: git
-                            new_lines.append(lines[i + 1])  # url
-                            new_lines.append(f'        commit: {latest_commit}')  # new commit
-                            i += 2  # Skip the next two lines we've processed
-                        else:
-                            new_lines.append(line)
-                    else:
-                        new_lines.append(line)
-                else:
-                    new_lines.append(line)
+                new_lines.append(line)
+
+                # Check if this line has our git URL and next line has commit
+                if 'url: https://github.com/lkavindu199/LibreLinkUpDesktop_dev_new.git' in line:
+                    # Look ahead for commit line (could be 1-2 lines after)
+                    look_ahead = min(i + 3, len(lines))
+                    for j in range(i + 1, look_ahead):
+                        if j < len(lines) and 'commit:' in lines[j]:
+                            # Extract the indentation and replace the commit
+                            indent = lines[j].split('commit:')[0]
+                            new_lines[j] = f'{indent}commit: {latest_commit}'
+                            print(f'Replaced commit at line {j+1}')
+                            break
+
                 i += 1
-            content = '\\n'.join(new_lines)
+            content = '\n'.join(new_lines)
 
         # Write back
         with open('rocks.poopjournal.librelinkupdesktop.yml', 'w') as f:
             f.write(content)
 
         print('=== After update ===')
-        git_sections = re.findall(r'(      - type: git\s+url: [^\n]+\s+commit: [^\n]+)', content)
+        git_sections = re.findall(r'      - type: git\s+url: [^\n]+\s+commit: [^\n]+', content)
         for section in git_sections:
             print('Updated git section:')
             print(section)
@@ -338,15 +323,22 @@ jobs:
         grep -A 2 -B 1 "url: https://github.com/lkavindu199/LibreLinkUpDesktop_dev_new.git" rocks.poopjournal.librelinkupdesktop.yml
 
         echo "=== Expected commit: ${{ steps.commit-info.outputs.latest_commit }} ==="
-        CURRENT_COMMIT=$(g -A 2 "url: https://github.com/lkavindu199/LibreLinkUpDesktop_dev_new.git" rocks.poopjournal.librelinkupdesktop.yml | grep "commit:" | awk '{print $2}')
+        CURRENT_COMMIT=$(grep -A 2 "url: https://github.com/lkavindu199/LibreLinkUpDesktop_dev_new.git" rocks.poopjournal.librelinkupdesktop.yml | grep "commit:" | awk '{print $2}')
         echo "=== Current commit in file: $CURRENT_COMMIT ==="
 
         if [ "$CURRENT_COMMIT" = "${{ steps.commit-info.outputs.latest_commit }}" ]; then
           echo "✅ Commit successfully updated!"
         else
           echo "❌ Commit update failed!"
+          echo "Expected: ${{ steps.commit-info.outputs.latest_commit }}"
+          echo "Found: $CURRENT_COMMIT"
           exit 1
         fi
+
+    - name: Show diff
+      run: |
+        cd target-repo
+        git diff
 
     - name: Commit and push
       run: |
