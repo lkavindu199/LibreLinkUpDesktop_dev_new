@@ -141,9 +141,16 @@ jobs:
         git config --local user.email "action@github.com"
         git config --local user.name "GitHub Action"
 
-        # Checkout the branch that triggered the workflow
-        BRANCH_NAME=${GITHUB_REF#refs/heads/}
-        git checkout -b $BRANCH_NAME
+        # Check if this is a tag trigger or branch trigger
+        if [[ "$GITHUB_REF" == refs/tags/* ]]; then
+          echo "Tag trigger detected - pushing to main branch instead"
+          BRANCH_NAME="main"
+          git checkout $BRANCH_NAME
+        else
+          # For branch pushes
+          BRANCH_NAME=${GITHUB_REF#refs/heads/}
+          git checkout -b $BRANCH_NAME
+        fi
 
         git add generated-sources.json
 
