@@ -287,13 +287,24 @@ jobs:
         )
         print('✅ Updated branch to main for all occurrences')
 
-        # Replace commit (any commit hash) after ANY branch line
+        # commit replacement
         content = re.sub(
-            r'(branch: [^\s]+\s+)commit: [a-f0-9]+',
+            r'(type: git\s+url: https://github\.com/lkavindu199/LibreLinkUpDesktop_dev_new\.git\s+branch: main\s+)commit: [a-fA-F0-9]+',
             f'\\1commit: {latest_commit}',
             content
         )
         print('✅ Updated commit ID for all occurrences')
+
+        # Alternative approach if the above doesn't work:
+        # Replace ANY commit line that follows our git URL and main branch
+        if 'commit: ' + latest_commit not in content:
+            print('Trying alternative commit replacement...')
+            content = re.sub(
+                r'(url: https://github\.com/lkavindu199/LibreLinkUpDesktop_dev_new\.git\s+branch: main\s+)commit: [^\s]+',
+                f'\\1commit: {latest_commit}',
+                content
+            )
+            print('✅ Updated commit ID using alternative method')
 
         # Write back
         with open('rocks.poopjournal.librelinkupdesktop.yml', 'w') as f:
