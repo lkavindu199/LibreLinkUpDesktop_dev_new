@@ -289,22 +289,30 @@ jobs:
 
         # commit replacement
         content = re.sub(
-            r'(type: git\s+url: https://github\.com/lkavindu199/LibreLinkUpDesktop_dev_new\.git\s+branch: main\s+)commit: [a-fA-F0-9]+',
-            f'\\1commit: {latest_commit}',
+            r'(type: git\s+url: https://github\.com/lkavindu199/LibreLinkUpDesktop_dev_new\.git\s+branch: main\s+commit: )[\da-fA-F]+',
+            f'\\1{latest_commit}',
             content
         )
         print('✅ Updated commit ID for all occurrences')
 
-        # Alternative approach if the above doesn't work:
-        # Replace ANY commit line that follows our git URL and main branch
-        if 'commit: ' + latest_commit not in content:
-            print('Trying alternative commit replacement...')
-            content = re.sub(
-                r'(url: https://github\.com/lkavindu199/LibreLinkUpDesktop_dev_new\.git\s+branch: main\s+)commit: [^\s]+',
-                f'\\1commit: {latest_commit}',
-                content
-            )
-            print('✅ Updated commit ID using alternative method')
+        # Direct replacement if the above doesn't work
+        lines = content.split('\n')
+        new_lines = []
+        i = 0
+        while i < len(lines):
+            line = lines[i]
+            new_lines.append(line)
+            # If we find a line with our git URL, check the next lines for branch and commit
+            if 'url: https://github.com/lkavindu199/LibreLinkUpDesktop_dev_new.git' in line:
+                # Look ahead for branch and commit lines
+                if i + 2 < len(lines):
+                    if 'branch: main' in lines[i + 1] and 'commit:' in lines[i + 2]:
+                        # Replace the commit line
+                        new_lines[i + 2] = f'        commit: {latest_commit}'
+                        i += 2  # Skip the next two lines since we've processed them
+            i += 1
+
+        content = '\n'.join(new_lines)
 
         # Write back
         with open('rocks.poopjournal.librelinkupdesktop.yml', 'w') as f:
@@ -317,7 +325,7 @@ jobs:
       run: |
         cd target-repo
         echo "=== All git sources after update ==="
-        grep -A 2 -B 1 "url:" rocks.poopjournal.librelinkupdesktop.yml
+        grep -A 3 -B 1 "url:" rocks.poopjournal.librelinkupdesktop.yml
 
     - name: Commit and push
       run: |
@@ -330,7 +338,7 @@ jobs:
         if git diff --staged --quiet; then
           echo "No changes to commit"
         else
-          git commit -m "chore: Update manifest "
+          git commit -m "chore: Update manifest with latest commit ${{ steps.commit-info.outputs.latest_commit }}"
           git push
           echo "✅ Manifest updated successfully"
         fi
