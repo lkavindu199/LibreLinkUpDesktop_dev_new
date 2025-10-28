@@ -248,84 +248,105 @@ jobs:
       run: |
         echo "latest_commit=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
 
-    - name: Update manifest with Python
+    - name: Debug current manifest structure
+      run: |
+        cd target-repo
+        echo "=== Current manifest structure around git sources ==="
+        grep -A 10 -B 2 "type: git" rocks.poopjournal.librelinkupdesktop.yml
+
+    - name: Update manifest with Python (fixed)
       run: |
         cd target-repo
 
         LATEST_COMMIT="${{ steps.commit-info.outputs.latest_commit }}"
 
         python3 -c "
-        import re
-
         latest_commit = '$LATEST_COMMIT'
-
         print(f'Updating with commit: {latest_commit}')
 
-        # Read file
+        # Read the entire file
         with open('rocks.poopjournal.librelinkupdesktop.yml', 'r') as f:
             content = f.read()
 
-        # Find ALL git URLs in the file
-        git_urls = re.findall(r'url: (https://github\.com/[^\s]+\.git)', content)
-        print(f'Found {len(git_urls)} git URLs in total:')
-        for url in git_urls:
-            print(f'  - {url}')
+        print('=== Before update ===')
+        # Find and print the current git source section
+        import re
+        git_sections = re.findall(r'(      - type: git\s+url: [^\n]+\s+commit: [^\n]+)', content)
+        for section in git_sections:
+            print('Found git section:')
+            print(section)
 
-        # Replace ANY git URL with our new URL
-        content = re.sub(
-            r'url: https://github\.com/[^/\s]+/[^\s]+\.git',
-            'url: https://github.com/lkavindu199/LibreLinkUpDesktop_dev_new.git',
-            content
-        )
-        print('✅ Replaced ALL git URLs with our repository')
+        # Method 1: Direct replacement with exact pattern matching
+        # Look for the specific pattern with flexible spacing
+        old_content = content
 
-        # Replace branch (any branch name) after ANY git URL
-        content = re.sub(
-            r'(url: https://github\.com/lkavindu199/LibreLinkUpDesktop_dev_new\.git\s+)branch: \S+',
-            r'\\1branch: main',
-            content
-        )
-        print('✅ Updated branch to main for all occurrences')
+        # Pattern to match the entire git source block
+        pattern = r'''(      - type: git\n        url: https://github\.com/lkavindu199/LibreLinkUpDesktop_dev_new\.git\n        commit: )([a-fA-F0-9]+)'''
 
-        # commit replacement
-        content = re.sub(
-            r'(type: git\s+url: https://github\.com/lkavindu199/LibreLinkUpDesktop_dev_new\.git\s+branch: main\s+commit: )[\da-fA-F]+',
-            f'\\1{latest_commit}',
-            content
-        )
-        print('✅ Updated commit ID for all occurrences')
+        replacement = f'\\1{latest_commit}'
+        content = re.sub(pattern, replacement, content)
 
-        # Direct replacement if the above doesn't work
-        lines = content.split('\n')
-        new_lines = []
-        i = 0
-        while i < len(lines):
-            line = lines[i]
-            new_lines.append(line)
-            # If we find a line with our git URL, check the next lines for branch and commit
-            if 'url: https://github.com/lkavindu199/LibreLinkUpDesktop_dev_new.git' in line:
-                # Look ahead for branch and commit lines
-                if i + 2 < len(lines):
-                    if 'branch: main' in lines[i + 1] and 'commit:' in lines[i + 2]:
-                        # Replace the commit line
-                        new_lines[i + 2] = f'        commit: {latest_commit}'
-                        i += 2  # Skip the next two lines since we've processed them
-            i += 1
+        # If no changes, try alternative pattern with different indentation
+        if content == old_content:
+            print('Trying alternative pattern...')
+            pattern2 = r'''(      - type: git\s+url: https://github\.com/lkavindu199/LibreLinkUpDesktop_dev_new\.git\s+commit: )([a-fA-F0-9]+)'''
+            content = re.sub(pattern2, replacement, content)
 
-        content = '\n'.join(new_lines)
+        # Method 2: If regex still fails, use line-by-line processing
+        if content == old_content:
+            print('Using line-by-line processing...')
+            lines = content.split('\\n')
+            new_lines = []
+            i = 0
+            while i < len(lines):
+                line = lines[i]
+                # Check if this is our git source
+                if 'type: git' in line and i + 2 < len(lines):
+                    if 'url: https://github.com/lkavindu199/LibreLinkUpDesktop_dev_new.git' in lines[i + 1]:
+                        if 'commit:' in lines[i + 2]:
+                            # Found our target - replace the commit line
+                            new_lines.append(line)  # type: git
+                            new_lines.append(lines[i + 1])  # url
+                            new_lines.append(f'        commit: {latest_commit}')  # new commit
+                            i += 2  # Skip the next two lines we've processed
+                        else:
+                            new_lines.append(line)
+                    else:
+                        new_lines.append(line)
+                else:
+                    new_lines.append(line)
+                i += 1
+            content = '\\n'.join(new_lines)
 
         # Write back
         with open('rocks.poopjournal.librelinkupdesktop.yml', 'w') as f:
             f.write(content)
 
-        print('✅ File updated successfully')
+        print('=== After update ===')
+        git_sections = re.findall(r'(      - type: git\s+url: [^\n]+\s+commit: [^\n]+)', content)
+        for section in git_sections:
+            print('Updated git section:')
+            print(section)
+
+        print('✅ File update completed')
         "
 
-    - name: Verify all changes
+    - name: Verify the update worked
       run: |
         cd target-repo
-        echo "=== All git sources after update ==="
-        grep -A 3 -B 1 "url:" rocks.poopjournal.librelinkupdesktop.yml
+        echo "=== Verifying commit was updated ==="
+        grep -A 2 -B 1 "url: https://github.com/lkavindu199/LibreLinkUpDesktop_dev_new.git" rocks.poopjournal.librelinkupdesktop.yml
+
+        echo "=== Expected commit: ${{ steps.commit-info.outputs.latest_commit }} ==="
+        CURRENT_COMMIT=$(g -A 2 "url: https://github.com/lkavindu199/LibreLinkUpDesktop_dev_new.git" rocks.poopjournal.librelinkupdesktop.yml | grep "commit:" | awk '{print $2}')
+        echo "=== Current commit in file: $CURRENT_COMMIT ==="
+
+        if [ "$CURRENT_COMMIT" = "${{ steps.commit-info.outputs.latest_commit }}" ]; then
+          echo "✅ Commit successfully updated!"
+        else
+          echo "❌ Commit update failed!"
+          exit 1
+        fi
 
     - name: Commit and push
       run: |
