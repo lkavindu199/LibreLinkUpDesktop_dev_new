@@ -140,12 +140,17 @@ jobs:
       run: |
         git config --local user.email "action@github.com"
         git config --local user.name "GitHub Action"
+
+        # Checkout the branch that triggered the workflow
+        BRANCH_NAME=${GITHUB_REF#refs/heads/}
+        git checkout -b $BRANCH_NAME
+
         git add generated-sources.json
 
         # Check if there are changes to commit
         if ! git diff --staged --quiet; then
           git commit -m "Update generated-sources.json for Flatpak build [skip ci]"
-          git push
+          git push origin $BRANCH_NAME
           echo "Successfully pushed updated generated-sources.json to repository"
           echo "has_changes=true" >> $GITHUB_OUTPUT
         else
