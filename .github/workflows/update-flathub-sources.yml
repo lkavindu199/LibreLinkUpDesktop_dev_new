@@ -5,7 +5,7 @@ on:
     tags:
       - 'flathubbuild-*'
   release:
-    types: [published]
+    types: [created, edited]
   workflow_dispatch:
 
 jobs:
