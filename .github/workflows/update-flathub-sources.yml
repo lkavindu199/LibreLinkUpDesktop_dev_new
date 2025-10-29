@@ -255,17 +255,14 @@ jobs:
         cd target-repo
 
         LATEST_COMMIT="${{ steps.commit-info.outputs.latest_commit }}"
-        REPO_OWNER="${{ github.repository_owner }}"
-        REPO_NAME="${{ github.event.repository.name }}"
         REPO_URL="https://github.com/${{ github.repository }}.git"
 
         echo "Latest commit: $LATEST_COMMIT"
         echo "Repository URL: $REPO_URL"
 
-        # Update the YAML file
-        python3 << EOF
+        # Update the YAML file - FIXED VERSION
+        python3 << 'EOF'
         import re
-        import yaml
 
         latest_commit = '$LATEST_COMMIT'
         repo_url = '$REPO_URL'
@@ -273,17 +270,49 @@ jobs:
         with open('rocks.poopjournal.librelinkupdesktop.yml', 'r') as f:
             content = f.read()
 
-        # Update both URL and commit to be completely dynamic
-        new_content = re.sub(
-            r'(      - type: git\s+url: )https://github\.com/[\w/-]+\.git(\s+commit: )\S+',
-            f'\\\\1{repo_url}\\\\2{latest_commit}',
-            content
-        )
+        print("=== Before update ===")
+        # Find the git section
+        git_match = re.search(r'(      - type: git\s+url: )([^\s]+)(\s+commit: )([^\s]+)', content)
+        if git_match:
+            print(f"Current URL: {git_match.group(2)}")
+            print(f"Current commit: {git_match.group(4)}")
+
+        # Method 1: Simple replacement without complex backreferences
+        pattern = r'      - type: git\s+url: https://github\.com/[\w/-]+\.git\s+commit: [^\s]+'
+        replacement = f'      - type: git\\n        url: {repo_url}\\n        commit: {latest_commit}'
+
+        new_content = re.sub(pattern, replacement, content)
+
+        # Method 2: If Method 1 doesn't work, use string replacement
+        if new_content == content:
+            print("Method 1 failed, trying Method 2...")
+            lines = content.split('\n')
+            new_lines = []
+            i = 0
+            while i < len(lines):
+                line = lines[i]
+                if 'type: git' in line and i + 2 < len(lines):
+                    # Check if next lines contain url and commit
+                    if 'url:' in lines[i+1] and 'commit:' in lines[i+2]:
+                        new_lines.append(line)  # Keep 'type: git'
+                        new_lines.append(f'        url: {repo_url}')  # Update URL
+                        new_lines.append(f'        commit: {latest_commit}')  # Update commit
+                        i += 3  # Skip the original url and commit lines
+                        continue
+                new_lines.append(line)
+                i += 1
+            new_content = '\n'.join(new_lines)
 
         with open('rocks.poopjournal.librelinkupdesktop.yml', 'w') as f:
             f.write(new_content)
 
-        print("✅ Manifest updated with current repository and commit")
+        print("=== After update ===")
+        git_match = re.search(r'(      - type: git\s+url: )([^\s]+)(\s+commit: )([^\s]+)', new_content)
+        if git_match:
+            print(f"Updated URL: {git_match.group(2)}")
+            print(f"Updated commit: {git_match.group(4)}")
+
+        print("✅ Manifest updated successfully")
         EOF
 
     - name: Verify the update worked
