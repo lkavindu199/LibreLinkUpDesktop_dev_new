@@ -260,10 +260,13 @@ jobs:
         echo "Latest commit: $LATEST_COMMIT"
         echo "Repository URL: $REPO_URL"
 
-        # Reliable approach using line-by-line processing
-        python3 << 'EOF'
+        # Use a Python script with proper variable substitution
+        python3 -c "
         latest_commit = '$LATEST_COMMIT'
         repo_url = '$REPO_URL'
+
+        print(f'Updating manifest with commit: {latest_commit}')
+        print(f'Using repository: {repo_url}')
 
         with open('rocks.poopjournal.librelinkupdesktop.yml', 'r') as f:
             lines = f.readlines()
@@ -294,8 +297,8 @@ jobs:
         with open('rocks.poopjournal.librelinkupdesktop.yml', 'w') as f:
             f.writelines(new_lines)
 
-        print("✅ Manifest updated successfully")
-        EOF
+        print('✅ Manifest updated successfully')
+        "
 
     - name: Verify the update worked
       run: |
@@ -303,19 +306,23 @@ jobs:
         echo "=== Verifying commit was updated ==="
 
         CURRENT_REPO_URL="https://github.com/${{ github.repository }}.git"
-        echo "Looking for URL: $CURRENT_REPO_URL"
+        EXPECTED_COMMIT="${{ steps.commit-info.outputs.latest_commit }}"
 
+        echo "Looking for URL: $CURRENT_REPO_URL"
+        echo "Expected commit: $EXPECTED_COMMIT"
+
+        # Show the git section
         grep -A 2 -B 1 "type: git" rocks.poopjournal.librelinkupdesktop.yml
 
-        echo "=== Expected commit: ${{ steps.commit-info.outputs.latest_commit }} ==="
+        # Extract the actual commit from the file
         CURRENT_COMMIT=$(grep -A 2 "type: git" rocks.poopjournal.librelinkupdesktop.yml | grep "commit:" | awk '{print $2}')
         echo "=== Current commit in file: $CURRENT_COMMIT ==="
 
-        if [ "$CURRENT_COMMIT" = "${{ steps.commit-info.outputs.latest_commit }}" ]; then
+        if [ "$CURRENT_COMMIT" = "$EXPECTED_COMMIT" ]; then
           echo "✅ Commit successfully updated!"
         else
           echo "❌ Commit update failed!"
-          echo "Expected: ${{ steps.commit-info.outputs.latest_commit }}"
+          echo "Expected: $EXPECTED_COMMIT"
           echo "Found: $CURRENT_COMMIT"
           exit 1
         fi
