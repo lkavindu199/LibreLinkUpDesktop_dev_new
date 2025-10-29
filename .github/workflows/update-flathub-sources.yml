@@ -254,43 +254,45 @@ jobs:
       run: |
         cd target-repo
 
-        export LATEST_COMMIT="${{ steps.commit-info.outputs.latest_commit }}"
-        export REPO_URL="https://github.com/${{ github.repository }}.git"
+        LATEST_COMMIT="${{ steps.commit-info.outputs.latest_commit }}"
+        REPO_URL="https://github.com/${{ github.repository }}.git"
 
         echo "Latest commit: $LATEST_COMMIT"
         echo "Repository URL: $REPO_URL"
 
-        # Update the YAML file using environment variables
+        # Reliable approach using line-by-line processing
         python3 << 'EOF'
-        import os
-        import re
-
-        latest_commit = os.environ['LATEST_COMMIT']
-        repo_url = os.environ['REPO_URL']
+        latest_commit = '$LATEST_COMMIT'
+        repo_url = '$REPO_URL'
 
         with open('rocks.poopjournal.librelinkupdesktop.yml', 'r') as f:
-            content = f.read()
+            lines = f.readlines()
 
-        print("=== Before update ===")
-        git_match = re.search(r'      - type: git\s+url:\s*([^\s]+)\s+commit:\s*([^\s]+)', content)
-        if git_match:
-            print(f"Current URL: {git_match.group(1)}")
-            print(f"Current commit: {git_match.group(2)}")
+        new_lines = []
+        i = 0
+        while i < len(lines):
+            line = lines[i]
 
-        # Replace both URL and commit
-        pattern = r'(      - type: git\s+url:\s*)[^\s]+(\s+commit:\s*)[^\s]+'
-        replacement = f'\\1{repo_url}\\2{latest_commit}'
+            # Look for the git source section
+            if 'type: git' in line and i + 2 < len(lines):
+                # Check if next lines contain url and commit
+                if 'url:' in lines[i+1] and 'commit:' in lines[i+2]:
+                    # Keep the type line
+                    new_lines.append(line)
+                    # Update URL line
+                    indent = lines[i+1].split('url:')[0]
+                    new_lines.append(f'{indent}url: {repo_url}\n')
+                    # Update commit line
+                    indent = lines[i+2].split('commit:')[0]
+                    new_lines.append(f'{indent}commit: {latest_commit}\n')
+                    i += 3  # Skip the original url and commit lines
+                    continue
 
-        new_content = re.sub(pattern, replacement, content)
+            new_lines.append(line)
+            i += 1
 
         with open('rocks.poopjournal.librelinkupdesktop.yml', 'w') as f:
-            f.write(new_content)
-
-        print("=== After update ===")
-        git_match = re.search(r'      - type: git\s+url:\s*([^\s]+)\s+commit:\s*([^\s]+)', new_content)
-        if git_match:
-            print(f"Updated URL: {git_match.group(1)}")
-            print(f"Updated commit: {git_match.group(2)}")
+            f.writelines(new_lines)
 
         print("✅ Manifest updated successfully")
         EOF
@@ -303,10 +305,10 @@ jobs:
         CURRENT_REPO_URL="https://github.com/${{ github.repository }}.git"
         echo "Looking for URL: $CURRENT_REPO_URL"
 
-        grep -A 2 -B 1 "url: $CURRENT_REPO_URL" rocks.poopjournal.librelinkupdesktop.yml
+        grep -A 2 -B 1 "type: git" rocks.poopjournal.librelinkupdesktop.yml
 
         echo "=== Expected commit: ${{ steps.commit-info.outputs.latest_commit }} ==="
-        CURRENT_COMMIT=$(grep -A 2 "url: $CURRENT_REPO_URL" rocks.poopjournal.librelinkupdesktop.yml | grep "commit:" | awk '{print $2}')
+        CURRENT_COMMIT=$(grep -A 2 "type: git" rocks.poopjournal.librelinkupdesktop.yml | grep "commit:" | awk '{print $2}')
         echo "=== Current commit in file: $CURRENT_COMMIT ==="
 
         if [ "$CURRENT_COMMIT" = "${{ steps.commit-info.outputs.latest_commit }}" ]; then
