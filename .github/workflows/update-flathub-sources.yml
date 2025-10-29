@@ -1,5 +1,9 @@
 name: Flatpak Build and Sync
 
+env:
+  TARGET_REPO: lkavindu199/test_libre
+  SOURCE_REPO: ${{ github.repository }}
+
 on:
   push:
     tags:
@@ -194,7 +198,7 @@ jobs:
     - name: Checkout target repo
       uses: actions/checkout@v4
       with:
-        repository: lkavindu199/test_libre
+        repository: ${{ env.TARGET_REPO }}
         token: ${{ secrets.TARGET_REPO_TOKEN }}
         path: target-repo
         ref: main
@@ -241,7 +245,7 @@ jobs:
     - name: Checkout target repo
       uses: actions/checkout@v4
       with:
-        repository: lkavindu199/test_libre
+        repository: ${{ env.TARGET_REPO }}
         token: ${{ secrets.TARGET_REPO_TOKEN }}
         path: target-repo
 
@@ -255,8 +259,10 @@ jobs:
         cd target-repo
 
         LATEST_COMMIT="${{ steps.commit-info.outputs.latest_commit }}"
-        REPO_URL="https://github.com/${{ github.repository }}.git"
+        REPO_URL="https://github.com/${{ env.SOURCE_REPO }}.git"
 
+        echo "Target Repository: ${{ env.TARGET_REPO }}"
+        echo "Source Repository: ${{ env.SOURCE_REPO }}"
         echo "Latest commit: $LATEST_COMMIT"
         echo "Repository URL: $REPO_URL"
 
@@ -305,7 +311,7 @@ jobs:
         cd target-repo
         echo "=== Verifying commit was updated ==="
 
-        CURRENT_REPO_URL="https://github.com/${{ github.repository }}.git"
+        CURRENT_REPO_URL="https://github.com/${{ env.SOURCE_REPO }}.git"
         EXPECTED_COMMIT="${{ steps.commit-info.outputs.latest_commit }}"
 
         echo "Looking for URL: $CURRENT_REPO_URL"
